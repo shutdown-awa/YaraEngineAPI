@@ -28,7 +28,7 @@ def YaraMatch (scanPath, rule):
     try:
         # 扫描可执行文件
         matches = rule.match(scanPath)
-        print(" \033[47m[S]\033[0m " + f"已扫描 {scanPath}")
+        print(" \033[47m[I]\033[0m " + f"已扫描 {scanPath}")
     except yara.Error as e:
         print(" \033[41m[E]\033[0m " + f"在使用 {scanPath} 扫描 {scanPath} 时出现错误: {e}")
     

@@ -25,7 +25,9 @@ def YaraRuleLoad(rulePath):
     return(rules)
 
 ## 扫描
-def YaraMatch (id,scanPath, rule, dbCur):
+def YaraMatch (id,scanPath, rule, dbCon, sqlLock):
+    with sqlLock:
+        dbCur=dbCon.cursor()
     try:
         # 扫描可执行文件
         matches = rule.match(scanPath)
@@ -39,8 +41,9 @@ def YaraMatch (id,scanPath, rule, dbCur):
         for i in range(len(matches)):
             report=report+matches[i]+"/"
         #写入db
-        dbCur.execute(f"UPDATE `task` SET `matchs` = '{report}' WHERE `id` = `{str(id)}`;")
-    dbCur.execute(f"UPDATE `task` SET `status` = 'Done' WHERE `task`.`id` = 13 ;")
-    
-dbCon = sql.connect(host="192.168.0.11",user="yara",password="7QhMQ7mBB7dGs2AY",database="yara")
-YaraMatch(13,"/workspaces/python/YaraEngineAPI/ScanFile/60cfe344b06cc13231407f172c464701e3aa952588ec7d9f1396ac4ed0b631e3",YaraRuleLoad("/workspaces/python/YaraEngineAPI/RuleCompiled"),dbCon.cursor())
+        with sqlLock:
+            dbCur.execute(f"UPDATE `task` SET `matchs` = '{report}' WHERE `id` = {id};")
+    with sqlLock:
+        dbCur.execute (f"UPDATE `task` SET `status` = 'Done' WHERE `id` = {id};")
+    with sqlLock:
+        dbCon.commit()

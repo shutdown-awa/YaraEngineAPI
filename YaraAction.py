@@ -2,6 +2,7 @@ import yara
 import os
 import platform
 import pymysql as sql
+import time
 
 print ("\033[44m== Yara Engine API Project ==========\033[0m")
 print ("\033[44mModule: YaraAction_Module\033[0m")
@@ -45,5 +46,6 @@ def YaraMatch (id,scanPath, rule, dbCon, sqlLock):
             dbCur.execute(f"UPDATE `task` SET `matchs` = '{report}' WHERE `id` = {id};")
     with sqlLock:
         dbCur.execute (f"UPDATE `task` SET `status` = 'Done' WHERE `id` = {id};")
+        dbCur.execute(f"UPDATE task SET endTime = '{int(time.time())}' WHERE id = {Id};")
     with sqlLock:
         dbCon.commit()

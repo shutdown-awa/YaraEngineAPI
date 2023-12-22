@@ -168,7 +168,7 @@ async def upload_file(id:int, file: UploadFile = File(...)):
     with sqlLock:
         dbCur = dbCon.cursor()
         dbCur.execute("SELECT * FROM `task` WHERE id = %s AND status = 'NoFile' ;", (id))
-    inListTask = list(dbCur.fetchall())
+        inListTask = list(dbCur.fetchall())
     if len(inListTask) == 0:
         raise HTTPException(status_code=400, detail="Unknown id or Upload pipe has been closed")
 
@@ -178,8 +178,8 @@ async def upload_file(id:int, file: UploadFile = File(...)):
     
     # 查询任务基本信息
     with sqlLock:
-        dbCur.execute("SELECT * FROM `task` WHERE id = %s' ;", (id))
-    inListTask = list(dbCur.fetchall())
+        dbCur.execute("SELECT * FROM `task` WHERE id = %s ;", (id))
+        inListTask = list(dbCur.fetchall())
     taskHash = inListTask[0][5]
 
     #接受数据
@@ -188,18 +188,21 @@ async def upload_file(id:int, file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
     except:
         raise HTTPException(status_code=500, detail="Server I/O Error")
+    buffer.close()
     
     #数据校验
-    md5Hash = hashlib.md5
-    while md5Hash := buffer.read(8192):
-        md5Hash.update(md5Hash)
-    fileHash = md5Hash.hexdigest()
+    with open(f"./ScanFile/{taskHash}", "rb") as f:
+        file_hash = hashlib.md5()
+        while chunk := f.read(8192):
+            file_hash.update(chunk)
+    fileHash = file_hash.hexdigest()
     if fileHash != taskHash:
+        os.remove(f"./ScanFile/{taskHash}")
         raise HTTPException(status_code=400, detail="File may damaged")
-    
+
     #更新任务状态
     with sqlLock:
         dbCur.execute(f"UPDATE task SET status = 'InList' WHERE id = {id};")
         dbCon.commit()
     
-    return()
+    raise HTTPException(status_code=201, detail="Created")

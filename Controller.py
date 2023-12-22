@@ -52,7 +52,6 @@ def Main():
         dbCur = dbCon.cursor()
     # 有没有新任务
     while True:
-    #for i in range(1):
         time.sleep (5)
         with sqlLock:
             dbCon.commit()

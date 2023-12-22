@@ -26,19 +26,26 @@ def YaraRuleLoad(rulePath):
     return(rules)
 
 ## 扫描
-def YaraMatch (id,scanPath, rule, dbCon, sqlLock):
+def YaraMatch (id,filePath, rule, dbCon, sqlLock):
     with sqlLock:
         dbCur=dbCon.cursor()
     try:
-        # 扫描可执行文件
-        matches = rule.match(scanPath)
-        print(" \033[47m[I]\033[0m " + f"已扫描 {scanPath}")
+        # 扫描文件
+        matches = rule.match(filePath)
+        print(" \033[47m[I]\033[0m " + f"已扫描 {filePath}")
     except yara.Error as e:
-        print(" \033[41m[E]\033[0m " + f"在使用 {scanPath} 扫描 {scanPath} 时出现错误: {e}")
+        print(" \033[41m[E]\033[0m " + f"在使用 {filePath} 扫描 {filePath} 时出现错误: {e}")
+
+    #删除样本
+    try:
+        os.remove(filePath)
+    except os.error as e:
+        print(" \033[41m[E]\033[0m " + f"删除样本 {filePath} 时出现错误: {e}")
+
     #生成报告
     report = []
     if len(matches)>0:
-        print(" \033[43m[W]\033[0m " + f"文件 {scanPath} 已被命中")
+        print(" \033[43m[W]\033[0m " + f"文件 {filePath} 已被命中")
         for i in range(len(matches)):
             report=report+matches[i]+"/"
         #写入db
@@ -46,6 +53,6 @@ def YaraMatch (id,scanPath, rule, dbCon, sqlLock):
             dbCur.execute(f"UPDATE `task` SET `matchs` = '{report}' WHERE `id` = {id};")
     with sqlLock:
         dbCur.execute (f"UPDATE `task` SET `status` = 'Done' WHERE `id` = {id};")
-        dbCur.execute(f"UPDATE task SET endTime = '{int(time.time())}' WHERE id = {Id};")
+        dbCur.execute(f"UPDATE task SET endTime = '{int(time.time())}' WHERE id = {id};")
     with sqlLock:
         dbCon.commit()

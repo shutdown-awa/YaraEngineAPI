@@ -47,6 +47,9 @@ def read_item(hash:str):
         int(hash, 16)
     except ValueError:
         raise HTTPException(status_code=400, detail="Couldn't pass Secure Check: Not a vaild Hash")
+        
+    # 格式化md5输入
+    hash = hash.lower()
     
     # 已有的任务但是没有超过5分钟
     with sqlLock:

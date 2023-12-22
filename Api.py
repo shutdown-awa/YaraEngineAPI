@@ -1,10 +1,12 @@
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, HTTPException, File
 from fastapi.responses import FileResponse
 import shutil
 import pymysql as sql
 import threading
 import time
 import random
+import hashlib
+import os
 
 # Setting
 dbHost = "192.168.0.11"
@@ -27,7 +29,7 @@ except sql.Error as e:
     exit
 
 ## 任务添加申请
-@Api.get("/task/add")
+@Api.get("/task/add", status_code=201)
 def read_item(hash:str):
     id = 0
     feedbackCode = 0
@@ -162,7 +164,7 @@ async def upload_file(id:int, file: UploadFile = File(...)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Couldn't pass Secure Check")
     
-    #文件是否存在
+    # 请求上传文件的任务id是否存在
     with sqlLock:
         dbCur = dbCon.cursor()
         dbCur.execute("SELECT * FROM `task` WHERE id = %s AND status = 'NoFile' ;", (id))
@@ -170,13 +172,34 @@ async def upload_file(id:int, file: UploadFile = File(...)):
     if len(inListTask) == 0:
         raise HTTPException(status_code=400, detail="Unknown id or Upload pipe has been closed")
 
-
-
+    # 文件大小限制
     if file.file._file.tell() > 50 * 1024 * 1024:  # 如果文件大于50MB
         raise HTTPException(status_code=413, detail="File is too large")
-    else:
-        try:
-            with open(f"./ScanFile/{id}", "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-        finally:
-            file.file.close()
+    
+    # 查询任务基本信息
+    with sqlLock:
+        dbCur.execute("SELECT * FROM `task` WHERE id = %s' ;", (id))
+    inListTask = list(dbCur.fetchall())
+    taskHash = inListTask[0][5]
+
+    #接受数据
+    try:
+        with open(f"./ScanFile/{taskHash}", "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except:
+        raise HTTPException(status_code=500, detail="Server I/O Error")
+    
+    #数据校验
+    md5Hash = hashlib.md5
+    while md5Hash := buffer.read(8192):
+        md5Hash.update(md5Hash)
+    fileHash = md5Hash.hexdigest()
+    if fileHash != taskHash:
+        raise HTTPException(status_code=400, detail="File may damaged")
+    
+    #更新任务状态
+    with sqlLock:
+        dbCur.execute(f"UPDATE task SET status = 'InList' WHERE id = {id};")
+        dbCon.commit()
+    
+    return()

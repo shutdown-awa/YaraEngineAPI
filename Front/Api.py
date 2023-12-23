@@ -7,6 +7,14 @@ import time
 import random
 import hashlib
 import os
+import platform
+
+print ("\033[44m== Yara Engine API Project ==========\033[0m")
+print ("\033[44mModule: Api Service\033[0m")
+print ("\033[44mSystem: " + platform.platform() + "\033[0m")
+print ("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
+print ("\033[44mCopyright © 2023 Shutdown & Kolomina, All rights reserved.\033[0m")
+print ()
 
 # Setting
 dbHost = "192.168.0.11"
@@ -59,9 +67,13 @@ def read_item(hash:str):
         raise HTTPException(status_code=423, detail="The same file has been uploaded by other users, please wait for the file scanning to complete")
     
     #清理已有的任务但是超过了5分钟但状态还是NoFile
-    with sqlLock:
-        dbCur.execute("DELETE FROM `task` WHERE hash = %s AND status != 'Done' AND addTime < %s ;", (hash, str(int(time.time())-300)))
-        dbCon.commit()
+    try:
+        with sqlLock:
+            dbCur.execute("DELETE FROM `task` WHERE hash = %s AND status != 'Done' AND addTime < %s ;", (hash, str(int(time.time())-300)))
+            dbCon.commit()
+    except:
+        print(" \033[43m[W]\033[0m " + f"未能移除过期记录：{dbCon.Error()}")
+        dbCon.rollback()
 
     #添加任务
     if feedbackCode == 0:
@@ -74,9 +86,7 @@ def read_item(hash:str):
                 dbCon.commit()
             feedbackMessage = "已添加"
         except:
-            id = 0
-            feedbackCode = -1
-            feedbackMessage = "ERROR: 任务写入数据库失败" 
+            print(" \033[43m[E]\033[0m " + f"未能添加查询请求：{dbCon.Error()}")
             raise HTTPException(status_code=500, detail="Database Error")
 
 
@@ -185,7 +195,7 @@ async def upload_file(id:int, file: UploadFile = File(...)):
         inListTask = list(dbCur.fetchall())
     taskHash = inListTask[0][5]
 
-    #接受数据
+    # 写入数据
     try:
         with open(f"./ScanFile/{taskHash}", "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)

@@ -8,6 +8,7 @@ print ("\033[44m== Yara Engine API Project ==========\033[0m")
 print ("\033[44mModule: YaraAction_Module\033[0m")
 print ("\033[44mSystem: " + platform.platform() + "\033[0m")
 print ("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
+print ("\033[YaraVersion: " + str(yara.__version__()) + "\033[0m")
 print ("\033[44mCopyright © 2023 Shutdown & Kolomina, All rights reserved.\033[0m")
 print ()
 

@@ -1,7 +1,15 @@
 import pymysql as sql
 import time
-import YaraAction as engine
+import Back.YaraAction as engine
 import threading
+import platform
+
+print ("\033[44m== Yara Engine API Project ==========\033[0m")
+print ("\033[44mModule: Controller_Module\033[0m")
+print ("\033[44mSystem: " + platform.platform() + "\033[0m")
+print ("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
+print ("\033[44mCopyright © 2023 Shutdown & Kolomina, All rights reserved.\033[0m")
+print ()
 
 # Setting
 dbHost = "192.168.0.11"
@@ -9,8 +17,8 @@ dbUsr = "yara"
 dbPwd = "7QhMQ7mBB7dGs2AY"
 dbName = "yara"
 maxThread = 6
-scanFilePath = "/workspaces/python/YaraEngineAPI/ScanFile"
-rulePath = "/workspaces/python/YaraEngineAPI/RuleCompiled"
+scanFilePath = "./ScanFile"
+rulePath = "./RuleCompiled"
 
 #载入规则
 engineRules = engine.YaraRuleLoad(rulePath)
@@ -70,4 +78,9 @@ def Main():
                 startTotal=len(inListTask)
             ThreadStarter(startTotal=startTotal, taskList=inListTask)
 
+
+# 将所有的Scanning重置为InList，重新扫描
+with sqlLock:
+    dbCur = dbCon.cursor()
+    dbCur.execute("UPDATE `task` SET status = 'InList' WHERE status = 'Scanning';")
 Main()

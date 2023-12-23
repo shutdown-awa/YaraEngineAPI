@@ -21,6 +21,7 @@ dbHost = "192.168.0.11"
 dbUsr = "yara"
 dbPwd = "7QhMQ7mBB7dGs2AY"
 dbName = "yara"
+scanFilePath = ""
 
 
 #初始化API
@@ -197,20 +198,20 @@ async def upload_file(id:int, file: UploadFile = File(...)):
 
     # 写入数据
     try:
-        with open(f"./ScanFile/{taskHash}", "wb") as buffer:
+        with open(f"{scanFilePath}/{taskHash}", "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except:
         raise HTTPException(status_code=500, detail="Server I/O Error")
     buffer.close()
     
     #数据校验
-    with open(f"./ScanFile/{taskHash}", "rb") as f:
+    with open(f"{scanFilePath}/{taskHash}", "rb") as f:
         file_hash = hashlib.md5()
         while chunk := f.read(8192):
             file_hash.update(chunk)
     fileHash = file_hash.hexdigest()
     if fileHash != taskHash:
-        os.remove(f"./ScanFile/{taskHash}")
+        os.remove(f"{scanFilePath}/{taskHash}")
         raise HTTPException(status_code=400, detail="File may damaged")
 
     #更新任务状态

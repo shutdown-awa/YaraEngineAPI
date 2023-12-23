@@ -20,8 +20,6 @@ maxThread = 6
 scanFilePath = "./ScanFile"
 rulePath = "./RuleCompiled"
 
-#载入规则
-engineRules = engine.YaraRuleLoad(rulePath)
 #创建锁
 sqlLock=threading.Lock()
 
@@ -79,8 +77,14 @@ def Main():
             ThreadStarter(startTotal=startTotal, taskList=inListTask)
 
 
+# 编译规则
+import Tools
+Tools.compile_yara_rules("./RuleOrigin", "./RuleCompiled")
+#载入规则
+engineRules = engine.YaraRuleLoad(rulePath)
 # 将所有的Scanning重置为InList，重新扫描
 with sqlLock:
     dbCur = dbCon.cursor()
     dbCur.execute("UPDATE `task` SET status = 'InList' WHERE status = 'Scanning';")
+# 载入
 Main()

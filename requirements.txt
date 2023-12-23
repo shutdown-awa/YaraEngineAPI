@@ -1,3 +1,5 @@
+yara-python
+pymysql
 fastapi
 uvicorn
 pymysql

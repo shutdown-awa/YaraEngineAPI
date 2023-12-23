@@ -32,10 +32,10 @@ def compile_yara_rules(src_dir, dest_dir):
 
 
 
-ruleOriginPath = input("规则输入目录[./RuleOrigin]: ")
-if ruleOriginPath == "":
-    ruleOriginPath = "./RuleOrigin"
-ruleCompiledPath = input("规则输出目录[./RuleCompiled]: ")
-if ruleCompiledPath == "":
-    ruleCompiledPath = "./RuleOrigin"
-compile_yara_rules(ruleOriginPath, ruleCompiledPath)
+#ruleOriginPath = input("规则输入目录[./RuleOrigin]: ")
+#if ruleOriginPath == "":
+#    ruleOriginPath = "./RuleOrigin"
+#ruleCompiledPath = input("规则输出目录[./RuleCompiled]: ")
+#if ruleCompiledPath == "":
+#    ruleCompiledPath = "./RuleOrigin"
+#compile_yara_rules(ruleOriginPath, ruleCompiledPath)

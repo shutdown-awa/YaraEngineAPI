@@ -36,12 +36,11 @@ def YaraMatch (id,filePath, rule, dbCon, sqlLock):
         print(" \033[47m[I]\033[0m " + f"已扫描 {filePath}")
     except yara.Error as e:
         print(" \033[41m[E]\033[0m " + f"在使用 {filePath} 扫描 {filePath} 时出现错误: {e}")
-
-    #删除样本
-    try:
-        os.remove(filePath)
-    except os.error as e:
-        print(" \033[41m[E]\033[0m " + f"删除样本 {filePath} 时出现错误: {e}")
+        with sqlLock:
+            dbCur.execute (f"UPDATE `task` SET `status` = 'ERROR' WHERE `id` = {id};")
+            dbCur.execute(f"UPDATE task SET endTime = '{int(time.time())}' WHERE id = {id};")
+            dbCon.commit()
+        return
 
     #生成报告
     report = []
@@ -55,5 +54,4 @@ def YaraMatch (id,filePath, rule, dbCon, sqlLock):
     with sqlLock:
         dbCur.execute (f"UPDATE `task` SET `status` = 'Done' WHERE `id` = {id};")
         dbCur.execute(f"UPDATE task SET endTime = '{int(time.time())}' WHERE id = {id};")
-    with sqlLock:
         dbCon.commit()

@@ -1,6 +1,6 @@
 import pymysql as sql
 import time
-import Back.YaraAction as engine
+import YaraAction as engine
 import threading
 import platform
 

@@ -1,8 +1,8 @@
-/__pycache__
-/ScanFile
-/RuleCompiled
-/RuleOrigin
-/.vscode
+*/__pycache__
+*/ScanFile
+*/RuleCompiled
+*/RuleOrigin
+*/.vscode
 /.github/ISSUE_TEMPLATE
 /LICENSE
 /README.md

@@ -1,33 +1,33 @@
 import pymysql as sql
 import time
-import YaraAction as engine
 import threading
 import platform
-import yara
 import os
 import configparser
 
 print ("\033[44m== Yara Engine API Project ==========\033[0m")
 print ("\033[44mSystem: " + platform.platform() + "\033[0m")
 print ("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
-print ("\033[44mCopyright © 2023 Shutdown & Kolomina, All rights reserved.\033[0m")
+print ("\033[44mCopyright © 2024 Shutdown & Kolomina, All rights reserved.\033[0m")
+print ("⛔️ \033[41mThis is a preview version for insider, DO NOT share this to any people.\033[0m")
 print ()
 
-
+import YaraAction as engine
 
 # 读取配置
 def configReader():
     global scannerMaxThread,dbHost,dbUsr,dbPwd,dbName
 
     try:
-        config = configparser.read("./setting.ini")
+        config = configparser.ConfigParser()
+        config.read(os.path.dirname(os.path.abspath(__file__)) + "/setting.ini")
     except configparser.Error as e:
         print(" \033[41m[E]\033[0m " + f"在读取setting.ini时出现错误: {e}")
         exit()
     
     scannerRule = config.items("scanner")
     scannerRule = dict(scannerRule)
-    scannerMaxThread = scannerRule["thread"] #最大线程
+    scannerMaxThread = int(scannerRule["thread"]) #最大线程
 
     configSql = config.items("sql")
     configSql = dict(configSql)
@@ -46,17 +46,15 @@ def ThreadStarter(startTotal, taskList):
         dbCur = dbCon.cursor()
     for startingThread in range(startTotal):
         #从sql返回结果截取信息
-        selectId = int(taskList[startingThread][0])
-        selectHash = str(taskList[startingThread][5])
+        selectHash = str(taskList[startingThread][0])
 
         #更新任务状态
         with sqlLock:
-            dbCur.execute(f"UPDATE task SET status = 'Scanning' WHERE id = {selectId};")
-            dbCur.execute(f"UPDATE task SET startTime = '{int(time.time())}' WHERE id = {selectId};")
+            dbCur.execute(f"UPDATE `file` SET status = 'Scanning' WHERE hash = '{selectHash}';")
             dbCon.commit()
 
         #创建线程
-        scanThread = threading.Thread(target=engine.YaraMatch, args=(selectId,scanFilePath+"/"+selectHash, engineRules,dbCon,sqlLock))
+        scanThread = threading.Thread(target=engine.YaraScanFile, args=(selectHash,))
         scanThread.start()
 
 
@@ -78,7 +76,7 @@ def EventClock():
             with sqlLock:
                 dbCur.execute("SELECT * FROM `file` WHERE status = 'Scanning';")
             scanningTask = list(dbCur.fetchall())
-            freeThread = scannerMaxThread - len(scanningTask)
+            freeThread = scannerMaxThread- len(scanningTask)
             #判断开几个线程
             if freeThread<len(inListTask):
                 startTotal=freeThread

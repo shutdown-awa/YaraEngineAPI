@@ -77,14 +77,14 @@ def YaraRuleCompile():
 def YaraRuleLoad():
     global rules, ruleVersion #创建全局变量
 
-    for root, dirs, files in os.walk(configRuleCompileDir):
-        for file in files:
-            if file.endswith('.yar'):
-                filepath = os.path.join(root, file)
-                try:
-                    rules = yara.load(filepath)
-                except yara.Error as e:
-                    print(" \033[41m[E]\033[0m " + f"在载入规则 {filepath} 时出现错误: {e}")
+    ruleFiles = [fileName for fileName in os.listdir(configRuleCompileDir) if fileName.endswith('.yar')]
+    rules = {}
+    for selectFile in ruleFiles:
+        try:
+            rules[selectFile] = yara.load(filepath=os.path.join(configRuleCompileDir, selectFile))
+        except Exception as error:
+            print(" \033[41m[E]\033[0m " + f"在载入规则 {selectFile} 时出现错误: {error}")
+                    
     print(" \033[42m[S]\033[0m " + "👀规则现已全部载入内存")
     ruleVersion = open(configRuleCompileDir + "/version", 'r').read()
 
@@ -94,14 +94,18 @@ def YaraRuleLoad():
 def YaraScanFile (hash):
     fileUrl = configFileDir + "/" + hash
 
-    with sqlLock:
-        dbCur=dbCon.cursor()
+    #扫描文件
+    matchRule = []
     try:
-        # 扫描文件
-        matches = rules.match (fileUrl)
-    except yara.Error as e:
+        for ruleName, rule in rules.items():
+            matches = rule.match(fileUrl)
+            if matches: #匹配成功？
+                for match in matches:
+                    matchRule.append(ruleName)
+    except Exception as e:
         print(" \033[41m[E]\033[0m " + f"扫描 {fileUrl} 时出现错误: {e}")
         with sqlLock:
+            dbCur=dbCon.cursor()
             dbCur.execute (f"UPDATE `file` SET `status` = 'Error' WHERE `hash` = {hash};")
             dbCur.execute(f"UPDATE `file` SET timestamp = '{int(time.time())}' WHERE hash = {hash};")
             dbCon.commit()
@@ -109,10 +113,9 @@ def YaraScanFile (hash):
 
     #生成报告
     report = []
-    if len(matches)>0:
-        print(" \033[43m[W]\033[0m " + f"文件 {fileUrl} 已被命中")
+    if len(matchRule)>0:
         for i in range(len(matches)):
-            report=report+matches[i]+"/"
+            report=report+matchRule[i]+"/"
         #写入db
         with sqlLock:
             dbCur.execute(f"UPDATE `file` SET `matchs` = '{report}' WHERE `hash` = '{hash}';")

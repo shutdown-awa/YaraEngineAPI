@@ -25,9 +25,9 @@ def configReader():
         print(" \033[41m[E]\033[0m " + f"在读取setting.ini时出现错误: {e}")
         exit()
     
-    scannerRule = config.items("scanner")
-    scannerRule = dict(scannerRule)
-    scannerMaxThread = int(scannerRule["thread"]) #最大线程
+    configScanner = config.items("scanner")
+    configScanner = dict(configScanner)
+    scannerMaxThread = int(configScanner["thread"]) #最大线程
 
     configSql = config.items("sql")
     configSql = dict(configSql)

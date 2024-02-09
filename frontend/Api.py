@@ -8,88 +8,121 @@ import random
 import hashlib
 import os
 import platform
+import configparser
 
-print ("\033[44m== Yara Engine API Project ==========\033[0m")
-print ("\033[44mModule: Api Service\033[0m")
-print ("\033[44mSystem: " + platform.platform() + "\033[0m")
-print ("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
-print ("\033[44mCopyright © 2023 Shutdown & Kolomina, All rights reserved.\033[0m")
-print ()
-
-# Setting
-dbHost = "192.168.0.11"
-dbUsr = "yara"
-dbPwd = "7QhMQ7mBB7dGs2AY"
-dbName = "yara"
-scanFilePath = ""
+print("\033[44m== Yara Engine API Project ==========\033[0m")
+print("\033[44mModule: Api Service\033[0m")
+print("\033[44mSystem: " + platform.platform() + "\033[0m")
+print("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
+print("\033[44mCopyright © 2023 Shutdown & Kolomina, All rights reserved.\033[0m")
+print("⛔️ \033[41mThis is a preview version for insider, DO NOT share this to any people.\033[0m")
+print()
 
 
-#初始化API
+def configReader():
+    global dbHost, dbUsr, dbPwd, dbName, scanFilePath
+
+    # Open setting.ini
+    try:
+        config = config.ConfigParser()
+        config.read(os.path.dirname(
+            os.path.abspath(__file__)) + "/setting.ini")
+    except configparser.Error as e:
+        print(" \033[41m[E]\033[0m " + f"在读取setting.ini时出现错误: {e}")
+        exit()
+
+    # Load database config
+    configSql = config.items("sql")
+    configSql = dict(configSql)
+    dbHost = configSql["host"]  # 数据库服务器
+    dbUsr = configSql["user"]  # 数据库用户
+    dbPwd = configSql["password"]  # 数据库密码
+    dbName = configSql["name"]  # 数据库名字
+
+    configPath = config.items("path")
+    configPath = dict(configSql)
+    scanFilePath = configPath["file_dir"]
+
+
+# 初始化API
 Api = FastAPI()
-#创建数据库锁
+# 创建数据库锁
 sqlLock = threading.Lock()
-#连接数据库
+# 连接数据库
 try:
     with sqlLock:
-        dbCon = sql.connect(host=dbHost,user=dbUsr,password=dbPwd,database=dbName)
+        dbCon = sql.connect(host=dbHost, user=dbUsr,
+                            password=dbPwd, database=dbName)
     print(" \033[42m[S]\033[0m " + f"已登录到{dbUsr}@{dbHost}")
 except sql.Error as e:
-    print (" \033[45m[F]\033[0m " + f"无法登录到{dbUsr}@{dbHost}: {e}")
+    print(" \033[45m[F]\033[0m " + f"无法登录到{dbUsr}@{dbHost}: {e}")
     exit
 
-## 任务添加申请
+
+# 任务添加请求
 @Api.get("/task/add", status_code=201)
-def read_item(hash:str):
+def read_item(hash: str):
     id = 0
     feedbackCode = 0
     feedbackMessage = ""
 
-    #数据库刷新
+    # 数据库刷新
     with sqlLock:
         dbCon.commit()
         dbCur = dbCon.cursor()
 
     # 安全校验
     if len(hash) != 32:
-        raise HTTPException(status_code=400, detail="Couldn't pass Secure Check: Not a vaild Hash")
+        raise HTTPException(
+            status_code=400, detail="Couldn't pass Secure Check: Not a vaild Hash. (Type: A)")
     try:
         int(hash, 16)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Couldn't pass Secure Check: Not a vaild Hash")
-        
+        raise HTTPException(
+            status_code=400, detail="Couldn't pass Secure Check: Not a vaild Hash. (Type: B)")
+
     # 格式化md5输入
     hash = hash.lower()
-    
-    # 已有的任务但是没有超过5分钟
-    with sqlLock:
-        dbCur.execute("SELECT * FROM `task` WHERE hash = %s AND status != 'Done' AND addTime >= %s ;", (hash, int(time.time())-300))
-    inListTask = list(dbCur.fetchall())
-    if len(inListTask) > 0:
-        raise HTTPException(status_code=423, detail="The same file has been uploaded by other users, please wait for the file scanning to complete")
-    
-    #清理已有的任务但是超过了5分钟但状态还是NoFile
+
+    # 是否需要在File表加入新的任务
     try:
         with sqlLock:
-            dbCur.execute("DELETE FROM `task` WHERE hash = %s AND status != 'Done' AND addTime < %s ;", (hash, str(int(time.time())-300)))
-            dbCon.commit()
+            dbCur = dbCon.cursor()
+            dbCur.execute("SELECT * FROM `file` WHERE hash = %s;", (hash))
+            sqlFeedback = list(dbCur.fetchall())
     except:
-        print(" \033[43m[W]\033[0m " + f"未能移除过期记录：{dbCon.Error()}")
-        dbCon.rollback()
+        feedbackCode = -2
+        feedbackMessage = "SQL Error"
+        raise HTTPException(
+            status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
 
-    #添加任务
-    if feedbackCode == 0:
-        # 生成id
-        id = int(str(int(time.time()))+str(random.randint(100,999))) # 时间后跟三位随机数
-        # 写入db
+    if len(sqlFeedback) == 0:
         try:
             with sqlLock:
-                dbCur.execute("INSERT INTO task(id, hash, status, addTime, startTime, endTime, matchs) VALUES (%s, %s, %s, %s, %s, %s, %s)", (id, hash, 'NoFile', str(int(time.time())), 0, 0,'na'))
+                dbCur.execute("INSERT INTO `file`(hash, status, matchs, timestamp, rule_version) VALUES (%s, %s, %s, %s, %s)",
+                              (hash, 'NoFile', 'na', str(int(time.time())), 0))
                 dbCon.commit()
             feedbackMessage = "已添加"
         except:
-            print(" \033[43m[E]\033[0m " + f"未能添加查询请求：{dbCon.Error()}")
+            print(" \033[43m[E]\033[0m " + f"未能存储文件信息：{dbCon.Error()}")
             raise HTTPException(status_code=500, detail="Database Error")
 
+    # 添加任务信息到task表
+    if feedbackCode == 0:
+        # 保存时间
+        timestamp = str(int(time.time()))
+        # 生成id
+        id = timestamp + str(random.randint(111, 999))  # 时间后跟三位随机数
+        # 写入db
+        try:
+            with sqlLock:
+                dbCur.execute("INSERT INTO task(id, hash, timestamp) VALUES (%s, %s, %s)",
+                              (id, hash, timestamp))
+                dbCon.commit()
+            feedbackMessage = "已添加"
+        except:
+            print(" \033[43m[E]\033[0m " + f"未能存储任务：{dbCon.Error()}")
+            raise HTTPException(status_code=500, detail="Database Error")
 
     # json数据包
     data = {
@@ -98,103 +131,193 @@ def read_item(hash:str):
         "taskApply": {
             "code": feedbackCode,
             "message": feedbackMessage,
-            "id": id
+            "id": id,
+            "timestamp": timestamp,
+            "hash": hash
         }
     }
     return data
 
 
-## 任务状态查询
+# 任务状态查询
 @Api.get("/task/status")
-def read_item(id:int):
+def read_item(id: int):
     feedbackCode = 0
     feedbackMessage = ""
-    feedbackStatus = "na"
-    feedbackId = 0
-    feedbackHash = "na"
-    feedbackAddTime = 0
-    feedbackStartTime = 0
-    feedbackEndTime = 0
-    feedbackMatchs = []
+    taskStatus = "na"
+    taskId = 0
+    taskHash = "na"
+    taskAddTimestamp = 0
+    taskEndTimestamp = 0
+    taskMatchs = []
 
     # 输入检查
     try:
         int(id)
     except ValueError:
         feedbackCode = -1
-        feedbackMessage = "Refuse: 非法的MD5输入"
-        raise HTTPException(status_code=400, detail="Couldn't pass Secure Check")
+        feedbackMessage = "Refuse: 非法的ID输入"
+        raise HTTPException(
+            status_code=400, detail="Couldn't pass Secure Check. (Type: B)")
+
+    # Sync Db
+    try:
+        with sqlLock:
+            dbCon.commit()
+    except:
+        feedbackCode = -2
+        feedbackMessage = "SQL Error"
+        raise HTTPException(
+            status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
 
     # 查询任务状态
-    if feedbackCode == 0:
+    try:
         with sqlLock:
-            # 读取db
+            # 读取task表
             dbCur = dbCon.cursor()
             dbCur.execute("SELECT * FROM `task` WHERE id = %s;", (id))
-            sqlFeedback = list(dbCur.fetchall())
-            # 任务是否存在
-            if len(sqlFeedback)>0:
-                # 读取db返回信息
-                feedbackId = sqlFeedback[0][0]
-                feedbackStatus = sqlFeedback[0][1]
-                feedbackAddTime = sqlFeedback[0][2]
-                feedbackStartTime = sqlFeedback[0][3]
-                feedbackEndTime = sqlFeedback[0][4]
-                feedbackHash = sqlFeedback[0][5]
-                
-                # 单独处理matchs
-                originData_Matchs = sqlFeedback[0][6]
-                feedbackMatchs = originData_Matchs.split("&")
-                feedbackMatchs = feedbackMatchs[:-1]
-            else:
-                feedbackCode = -1
-                feedbackMessage = "Refuse: 不存在的任务id"
-                raise HTTPException(status_code=404, detail="Not Found")
+            taskTableFeedback = list(dbCur.fetchall())
+    except:
+        feedbackCode = -2
+        feedbackMessage = "SQL Error"
+        raise HTTPException(
+            status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
+
+    # 任务是否存在
+    if len(taskTableFeedback) < 0:
+        feedbackCode = -1
+        feedbackMessage = "Refuse: 不存在的任务id"
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # 读取task表返回信息
+    taskHash = taskTableFeedback[0][0]
+    taskId = taskTableFeedback[0][1]
+    taskAddTimestamp = taskTableFeedback[0][2]
+
+    # 读取file表
+    try:
+        with sqlLock:
+            dbCur.execute("SELECT * FROM `file` WHERE hash = %s;", (hash))
+            fileTableFeedback = list(dbCur.fetchall())
+    except:
+        feedbackCode = -2
+        feedbackMessage = "SQL Error"
+        raise HTTPException(
+            status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
+
+    # 处理file表信息
+    # 单独处理matchs
+    originData_Matchs = taskTableFeedback[0][6]
+    taskMatchs = originData_Matchs.split("/")
+    taskMatchs = taskMatchs[:-1]
+    # others
+    taskRuleVersion = fileTableFeedback[2]
+    taskStatus = fileTableFeedback[3]
+
+    feedbackCode = 0
+    feedbackMessage = "获取成功"
 
     data = {
-    "packageVersion": 1,
-    "time": int(time.time()),
-    "taskStatus":{
-        "code":feedbackCode,
-        "message":feedbackMessage,
-        "status":feedbackStatus,
-        "id":feedbackId,
-        "hash":feedbackHash,
-        "addTime":feedbackAddTime,
-        "startTime":feedbackStartTime,
-        "endTime":feedbackEndTime,
-        "matchs":feedbackMatchs
+        "packageVersion": 1,
+        "time": int(time.time()),
+        "taskStatus": {
+            "code": feedbackCode,
+            "message": feedbackMessage,
+            "status": taskStatus,
+            "id": taskId,
+            "hash": taskHash,
+            "addTime": taskAddTimestamp,
+            "endTime": taskEndTimestamp,
+            "matchs": taskMatchs,
+            "rule_version": taskRuleVersion
         }
     }
-    
+
     return data
 
-## 文件接收
+
+# 文件接收
 @Api.post("/file")
-async def upload_file(id:int, file: UploadFile = File(...)):
+async def upload_file(id: int, file: UploadFile = File(...)):
     # 安全检查
     try:
         int(id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Couldn't pass Secure Check")
-    
+        raise HTTPException(
+            status_code=400, detail="Couldn't pass Secure Check (Type: B)")
+
+    # Sync Db
+    try:
+        with sqlLock:
+            dbCon.commit()
+    except:
+        feedbackCode = -2
+        feedbackMessage = "SQL Error"
+        raise HTTPException(
+            status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
+
     # 请求上传文件的任务id是否存在
-    with sqlLock:
-        dbCur = dbCon.cursor()
-        dbCur.execute("SELECT * FROM `task` WHERE id = %s AND status = 'NoFile' ;", (id))
-        inListTask = list(dbCur.fetchall())
-    if len(inListTask) == 0:
-        raise HTTPException(status_code=400, detail="Unknown id or Upload pipe has been closed")
+    try:
+        with sqlLock:
+            # 读取task表
+            dbCur = dbCon.cursor()
+            dbCur.execute("SELECT * FROM `task` WHERE id = %s;", (id))
+            taskTableFeedback = list(dbCur.fetchall())
+    except:
+        feedbackCode = -2
+        feedbackMessage = "SQL Error"
+        raise HTTPException(
+            status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
+
+    if len(taskTableFeedback) < 0:
+        feedbackCode = -1
+        feedbackMessage = "Refuse: 不存在的任务id"
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # 读取task表返回信息
+    taskHash = taskTableFeedback[0][0]
+    taskId = taskTableFeedback[0][1]
+    taskAddTimestamp = taskTableFeedback[0][2]
+
+    # 读取file表
+    try:
+        with sqlLock:
+            dbCur.execute("SELECT * FROM `file` WHERE hash = %s;", (hash))
+            fileTableFeedback = list(dbCur.fetchall())
+    except:
+        feedbackCode = -2
+        feedbackMessage = "SQL Error"
+        raise HTTPException(
+            status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
+
+    # 处理file表信息
+    taskRuleVersion = fileTableFeedback[2]
+    taskStatus = fileTableFeedback[3]
+
+    # 是否适合上传的状态？
+    # 检查服务器是否已经保存了这个文件
+    if (os.path.exists(scanFilePath + "/" + taskHash) == False):
+        # 顺便刷新任务状态
+        try:
+            with sqlLock:
+                dbCur.execute(
+                    "UPDATE `file` SET status = 'InList' WHERE status = 'NoFile' AND WHERE hash = %s;", taskHash)
+        except:
+            feedbackCode = -2
+            feedbackMessage = "SQL Error"
+            raise HTTPException(
+                status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
+
+        raise HTTPException(
+            status_code=400, detail="Server has already save this file which with the same Hash.")
+    # 检查Status是否合适
+    if (taskStatus != "NoFile"):
+        raise HTTPException(
+            status_code=400, detail="Upload pipe isn't opening.")
 
     # 文件大小限制
     if file.file._file.tell() > 50 * 1024 * 1024:  # 如果文件大于50MB
         raise HTTPException(status_code=413, detail="File is too large")
-    
-    # 查询任务基本信息
-    with sqlLock:
-        dbCur.execute("SELECT * FROM `task` WHERE id = %s ;", (id))
-        inListTask = list(dbCur.fetchall())
-    taskHash = inListTask[0][5]
 
     # 写入数据
     try:
@@ -203,8 +326,8 @@ async def upload_file(id:int, file: UploadFile = File(...)):
     except:
         raise HTTPException(status_code=500, detail="Server I/O Error")
     buffer.close()
-    
-    #数据校验
+
+    # 数据校验
     with open(f"{scanFilePath}/{taskHash}", "rb") as f:
         file_hash = hashlib.md5()
         while chunk := f.read(8192):
@@ -214,9 +337,9 @@ async def upload_file(id:int, file: UploadFile = File(...)):
         os.remove(f"{scanFilePath}/{taskHash}")
         raise HTTPException(status_code=400, detail="File may damaged")
 
-    #更新任务状态
+    # 更新任务状态
     with sqlLock:
-        dbCur.execute(f"UPDATE task SET status = 'InList' WHERE id = {id};")
+        dbCur.execute(f"UPDATE `file` SET status = 'InList' WHERE id = {id};")
         dbCon.commit()
-    
+
     raise HTTPException(status_code=201, detail="Created")

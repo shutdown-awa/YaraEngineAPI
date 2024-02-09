@@ -107,7 +107,7 @@ def YaraScanFile (hash):
         with sqlLock:
             dbCur=dbCon.cursor()
             dbCur.execute (f"UPDATE `file` SET `status` = 'Error' WHERE `hash` = {hash};")
-            dbCur.execute(f"UPDATE `file` SET timestamp = '{int(time.time())}' WHERE hash = {hash};")
+            dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE hash = {hash};")
             dbCon.commit()
         return
 

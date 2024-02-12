@@ -50,7 +50,7 @@ def ThreadStarter(startTotal, taskList):
 
         #更新任务状态
         with sqlLock:
-            dbCur.execute(f"UPDATE `file` SET status = 'Scanning' WHERE hash = '{selectHash}';")
+            dbCur.execute("UPDATE `file` SET status = 'Scanning' WHERE hash = %s;", (selectHash))
             dbCon.commit()
 
         #创建线程

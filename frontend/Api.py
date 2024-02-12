@@ -19,14 +19,14 @@ print("⛔️ \033[41mThis is a preview version for insider, DO NOT share this t
 print()
 
 
+
 def configReader():
     global dbHost, dbUsr, dbPwd, dbName, scanFilePath
 
     # Open setting.ini
     try:
-        config = config.ConfigParser()
-        config.read(os.path.dirname(
-            os.path.abspath(__file__)) + "/setting.ini")
+        config = configparser.ConfigParser()
+        config.read(os.path.dirname(os.path.abspath(__file__)) + "/setting.ini")
     except configparser.Error as e:
         print(" \033[41m[E]\033[0m " + f"在读取setting.ini时出现错误: {e}")
         exit()
@@ -40,27 +40,30 @@ def configReader():
     dbName = configSql["name"]  # 数据库名字
 
     configPath = config.items("path")
-    configPath = dict(configSql)
+    configPath = dict(configPath)
     scanFilePath = configPath["file_dir"]
 
 
+
+# 读取配置
+configReader()
 # 初始化API
-Api = FastAPI()
+app = FastAPI()
 # 创建数据库锁
 sqlLock = threading.Lock()
 # 连接数据库
 try:
     with sqlLock:
-        dbCon = sql.connect(host=dbHost, user=dbUsr,
-                            password=dbPwd, database=dbName)
+        dbCon = sql.connect(host=dbHost, user=dbUsr, password=dbPwd, database=dbName)
     print(" \033[42m[S]\033[0m " + f"已登录到{dbUsr}@{dbHost}")
 except sql.Error as e:
     print(" \033[45m[F]\033[0m " + f"无法登录到{dbUsr}@{dbHost}: {e}")
     exit
 
 
+
 # 任务添加请求
-@Api.get("/task/add", status_code=201)
+@app.get("/task/add", status_code=201)
 def read_item(hash: str):
     id = 0
     feedbackCode = 0
@@ -100,7 +103,7 @@ def read_item(hash: str):
         try:
             with sqlLock:
                 dbCur.execute("INSERT INTO `file`(hash, status, matchs, timestamp, rule_version) VALUES (%s, %s, %s, %s, %s)",
-                              (hash, 'NoFile', 'na', str(int(time.time())), 0))
+                              (hash, 'NoFile', 'na', 0, 0))
                 dbCon.commit()
             feedbackMessage = "已添加"
         except:
@@ -140,7 +143,7 @@ def read_item(hash: str):
 
 
 # 任务状态查询
-@Api.get("/task/status")
+@app.get("/task/status")
 def read_item(id: int):
     feedbackCode = 0
     feedbackMessage = ""
@@ -184,35 +187,34 @@ def read_item(id: int):
             status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
 
     # 任务是否存在
-    if len(taskTableFeedback) < 0:
+    if len(taskTableFeedback) <= 0:
         feedbackCode = -1
         feedbackMessage = "Refuse: 不存在的任务id"
         raise HTTPException(status_code=404, detail="Not Found")
 
     # 读取task表返回信息
-    taskHash = taskTableFeedback[0][0]
-    taskId = taskTableFeedback[0][1]
-    taskAddTimestamp = taskTableFeedback[0][2]
-
+    taskHash = taskTableFeedback[0][2]
+    taskId = taskTableFeedback[0][0]
+    taskAddTimestamp = taskTableFeedback[0][1]
+    
     # 读取file表
     try:
         with sqlLock:
-            dbCur.execute("SELECT * FROM `file` WHERE hash = %s;", (hash))
+            dbCur.execute("SELECT * FROM `file` WHERE `hash` = %s;", (taskHash))
             fileTableFeedback = list(dbCur.fetchall())
     except:
         feedbackCode = -2
         feedbackMessage = "SQL Error"
         raise HTTPException(
             status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
-
     # 处理file表信息
     # 单独处理matchs
-    originData_Matchs = taskTableFeedback[0][6]
+    originData_Matchs = fileTableFeedback[0][2]
     taskMatchs = originData_Matchs.split("/")
     taskMatchs = taskMatchs[:-1]
     # others
-    taskRuleVersion = fileTableFeedback[2]
-    taskStatus = fileTableFeedback[3]
+    taskRuleVersion = fileTableFeedback[0][3]
+    taskStatus = fileTableFeedback[0][1]
 
     feedbackCode = 0
     feedbackMessage = "获取成功"
@@ -237,7 +239,7 @@ def read_item(id: int):
 
 
 # 文件接收
-@Api.post("/file")
+@app.post("/file")
 async def upload_file(id: int, file: UploadFile = File(...)):
     # 安全检查
     try:
@@ -256,7 +258,7 @@ async def upload_file(id: int, file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
 
-    # 请求上传文件的任务id是否存在
+    # 查询任务状态
     try:
         with sqlLock:
             # 读取task表
@@ -269,30 +271,28 @@ async def upload_file(id: int, file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
 
+    # 任务是否存在
     if len(taskTableFeedback) < 0:
         feedbackCode = -1
         feedbackMessage = "Refuse: 不存在的任务id"
         raise HTTPException(status_code=404, detail="Not Found")
 
     # 读取task表返回信息
-    taskHash = taskTableFeedback[0][0]
-    taskId = taskTableFeedback[0][1]
-    taskAddTimestamp = taskTableFeedback[0][2]
-
+    taskHash = taskTableFeedback[0][2]
+    
     # 读取file表
     try:
         with sqlLock:
-            dbCur.execute("SELECT * FROM `file` WHERE hash = %s;", (hash))
+            dbCur.execute("SELECT * FROM `file` WHERE `hash` = %s;", (taskHash))
             fileTableFeedback = list(dbCur.fetchall())
     except:
         feedbackCode = -2
         feedbackMessage = "SQL Error"
         raise HTTPException(
             status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
-
     # 处理file表信息
-    taskRuleVersion = fileTableFeedback[2]
-    taskStatus = fileTableFeedback[3]
+
+    taskStatus = fileTableFeedback[0][1]
 
     # 是否适合上传的状态？
     # 检查服务器是否已经保存了这个文件
@@ -301,7 +301,7 @@ async def upload_file(id: int, file: UploadFile = File(...)):
         try:
             with sqlLock:
                 dbCur.execute(
-                    "UPDATE `file` SET status = 'InList' WHERE status = 'NoFile' AND WHERE hash = %s;", taskHash)
+                    "UPDATE `file` SET status = 'InList' WHERE status = 'NoFile' AND hash = %s;", taskHash)
         except:
             feedbackCode = -2
             feedbackMessage = "SQL Error"

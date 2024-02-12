@@ -106,8 +106,8 @@ def YaraScanFile (hash):
         print(" \033[41m[E]\033[0m " + f"扫描 {fileUrl} 时出现错误: {e}")
         with sqlLock:
             dbCur=dbCon.cursor()
-            dbCur.execute (f"UPDATE `file` SET `status` = 'Error' WHERE `hash` = {hash};")
-            dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE hash = {hash};")
+            dbCur.execute ("UPDATE `file` SET `status` = 'Error' WHERE `hash` = %s;", (hash))
+            dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE hash = %s;", (hash))
             dbCon.commit()
         return
 
@@ -118,11 +118,11 @@ def YaraScanFile (hash):
             report=report+matchRule[i]+"/"
         #写入db
         with sqlLock:
-            dbCur.execute(f"UPDATE `file` SET `matchs` = '{report}' WHERE `hash` = '{hash}';")
+            dbCur.execute(f"UPDATE `file` SET `matchs` = '{report}' WHERE `hash` = %s;", (hash))
     with sqlLock:
-        dbCur.execute (f"UPDATE `file` SET `status` = 'Done' WHERE `hash` = '{hash}';")
-        dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE `hash` = '{hash}';")
-        dbCur.execute(f"UPDATE `file` SET `rule_version` = '{ruleVersion}' WHERE `hash` = '{hash}';")
+        dbCur.execute (f"UPDATE `file` SET `status` = 'Done' WHERE `hash` = %s;", (hash))
+        dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE `hash` = %s;", (hash))
+        dbCur.execute(f"UPDATE `file` SET `rule_version` = '{ruleVersion}' WHERE `hash` = %s;", (hash))
         dbCon.commit()
 
 

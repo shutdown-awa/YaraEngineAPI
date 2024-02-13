@@ -69,7 +69,7 @@ def EventClock():
         time.sleep (5)
         with sqlLock:
             dbCon.commit()
-            dbCur.execute("SELECT * FROM `file` WHERE status = 'InList';")
+            dbCur.execute("SELECT hash FROM `file` WHERE status = 'InList';")
         inListTask = list(dbCur.fetchall())
         # 还有没有空闲线程
         if len(inListTask) > 0:

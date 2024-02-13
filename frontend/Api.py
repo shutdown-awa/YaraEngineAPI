@@ -1,5 +1,4 @@
 from fastapi import FastAPI, UploadFile, HTTPException, File
-from fastapi.responses import FileResponse
 import shutil
 import pymysql as sql
 import threading
@@ -178,7 +177,7 @@ def read_item(id: int):
         with sqlLock:
             # 读取task表
             dbCur = dbCon.cursor()
-            dbCur.execute("SELECT * FROM `task` WHERE id = %s;", (id))
+            dbCur.execute("SELECT hash, id, timestamp FROM `task` WHERE id = %s;", (id))
             taskTableFeedback = list(dbCur.fetchall())
     except:
         feedbackCode = -2
@@ -193,14 +192,14 @@ def read_item(id: int):
         raise HTTPException(status_code=404, detail="Not Found")
 
     # 读取task表返回信息
-    taskHash = taskTableFeedback[0][2]
-    taskId = taskTableFeedback[0][0]
-    taskAddTimestamp = taskTableFeedback[0][1]
+    taskHash = taskTableFeedback[0][0]
+    taskId = taskTableFeedback[0][1]
+    taskAddTimestamp = taskTableFeedback[0][2]
     
     # 读取file表
     try:
         with sqlLock:
-            dbCur.execute("SELECT * FROM `file` WHERE `hash` = %s;", (taskHash))
+            dbCur.execute("SELECT matchs, rule_version, status FROM `file` WHERE `hash` = %s;", (taskHash))
             fileTableFeedback = list(dbCur.fetchall())
     except:
         feedbackCode = -2
@@ -208,13 +207,9 @@ def read_item(id: int):
         raise HTTPException(
             status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
     # 处理file表信息
-    # 单独处理matchs
-    originData_Matchs = fileTableFeedback[0][2]
-    taskMatchs = originData_Matchs.split("/")
-    taskMatchs = taskMatchs[:-1]
-    # others
-    taskRuleVersion = fileTableFeedback[0][3]
-    taskStatus = fileTableFeedback[0][1]
+    taskMatchs = fileTableFeedback[0][0]
+    taskRuleVersion = fileTableFeedback[0][1]
+    taskStatus = fileTableFeedback[0][2]
 
     feedbackCode = 0
     feedbackMessage = "获取成功"
@@ -263,7 +258,7 @@ async def upload_file(id: int, file: UploadFile = File(...)):
         with sqlLock:
             # 读取task表
             dbCur = dbCon.cursor()
-            dbCur.execute("SELECT * FROM `task` WHERE id = %s;", (id))
+            dbCur.execute("SELECT hash FROM `task` WHERE id = %s;", (id))
             taskTableFeedback = list(dbCur.fetchall())
     except:
         feedbackCode = -2
@@ -278,12 +273,12 @@ async def upload_file(id: int, file: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="Not Found")
 
     # 读取task表返回信息
-    taskHash = taskTableFeedback[0][2]
+    taskHash = taskTableFeedback[0][0]
     
     # 读取file表
     try:
         with sqlLock:
-            dbCur.execute("SELECT * FROM `file` WHERE `hash` = %s;", (taskHash))
+            dbCur.execute("SELECT status FROM `file` WHERE `hash` = %s;", (taskHash))
             fileTableFeedback = list(dbCur.fetchall())
     except:
         feedbackCode = -2
@@ -291,12 +286,11 @@ async def upload_file(id: int, file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400, detail=f"{feedbackMessage} ({feedbackCode})")
     # 处理file表信息
-
-    taskStatus = fileTableFeedback[0][1]
+    taskStatus = fileTableFeedback[0][0]
 
     # 是否适合上传的状态？
     # 检查服务器是否已经保存了这个文件
-    if (os.path.exists(scanFilePath + "/" + taskHash) == False):
+    if (os.path.exists(scanFilePath + "/" + taskHash)):
         # 顺便刷新任务状态
         try:
             with sqlLock:
@@ -315,9 +309,6 @@ async def upload_file(id: int, file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400, detail="Upload pipe isn't opening.")
 
-    # 文件大小限制
-    if file.file._file.tell() > 50 * 1024 * 1024:  # 如果文件大于50MB
-        raise HTTPException(status_code=413, detail="File is too large")
 
     # 写入数据
     try:
@@ -339,7 +330,7 @@ async def upload_file(id: int, file: UploadFile = File(...)):
 
     # 更新任务状态
     with sqlLock:
-        dbCur.execute(f"UPDATE `file` SET status = 'InList' WHERE id = {id};")
+        dbCur.execute("UPDATE `file` SET status = 'InList' WHERE hash = %s;", (taskHash))
         dbCon.commit()
 
     raise HTTPException(status_code=201, detail="Created")

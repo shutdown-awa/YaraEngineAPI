@@ -50,7 +50,7 @@ def ThreadStarter(startTotal, taskList):
 
         #更新任务状态
         with sqlLock:
-            dbCur.execute(f"UPDATE `file` SET status = 'Scanning' WHERE hash = '{selectHash}';")
+            dbCur.execute("UPDATE `file` SET status = 'Scanning' WHERE hash = %s;", (selectHash))
             dbCon.commit()
 
         #创建线程
@@ -69,7 +69,7 @@ def EventClock():
         time.sleep (5)
         with sqlLock:
             dbCon.commit()
-            dbCur.execute("SELECT * FROM `file` WHERE status = 'InList';")
+            dbCur.execute("SELECT hash FROM `file` WHERE status = 'InList';")
         inListTask = list(dbCur.fetchall())
         # 还有没有空闲线程
         if len(inListTask) > 0:

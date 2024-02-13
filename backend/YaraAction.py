@@ -92,6 +92,7 @@ def YaraRuleLoad():
 
 ## 扫描
 def YaraScanFile (hash):
+    dbCur=dbCon.cursor()
     fileUrl = configFileDir + "/" + hash
 
     #扫描文件
@@ -100,29 +101,21 @@ def YaraScanFile (hash):
         for ruleName, rule in rules.items():
             matches = rule.match(fileUrl)
             if matches: #匹配成功？
-                for match in matches:
-                    matchRule.append(ruleName)
+                matchRule.append(ruleName)
     except Exception as e:
         print(" \033[41m[E]\033[0m " + f"扫描 {fileUrl} 时出现错误: {e}")
         with sqlLock:
-            dbCur=dbCon.cursor()
-            dbCur.execute (f"UPDATE `file` SET `status` = 'Error' WHERE `hash` = {hash};")
-            dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE hash = {hash};")
+            dbCur.execute ("UPDATE `file` SET `status` = 'Error' WHERE `hash` = %s;", (hash))
+            dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE hash = %s;", (hash))
             dbCon.commit()
         return
 
-    #生成报告
-    report = []
-    if len(matchRule)>0:
-        for i in range(len(matches)):
-            report=report+matchRule[i]+"/"
-        #写入db
-        with sqlLock:
-            dbCur.execute(f"UPDATE `file` SET `matchs` = '{report}' WHERE `hash` = '{hash}';")
+    #写入db
     with sqlLock:
-        dbCur.execute (f"UPDATE `file` SET `status` = 'Done' WHERE `hash` = '{hash}';")
-        dbCur.execute(f"UPDATE `file` SET `timestamp` = '{int(time.time())}' WHERE `hash` = '{hash}';")
-        dbCur.execute(f"UPDATE `file` SET `rule_version` = '{ruleVersion}' WHERE `hash` = '{hash}';")
+        dbCur.execute("UPDATE `file` SET `matchs` = %s WHERE `hash` = %s;", (str(matchRule), hash))
+        dbCur.execute ("UPDATE `file` SET `status` = 'Done' WHERE `hash` = %s;", (hash))
+        dbCur.execute("UPDATE `file` SET `timestamp` = %s WHERE `hash` = %s;", (int(time.time()), hash))
+        dbCur.execute("UPDATE `file` SET `rule_version` = %s WHERE `hash` = %s;", (ruleVersion, hash))
         dbCon.commit()
 
 

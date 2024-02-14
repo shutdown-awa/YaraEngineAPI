@@ -14,7 +14,6 @@ print("\033[44mModule: Api Service\033[0m")
 print("\033[44mSystem: " + platform.platform() + "\033[0m")
 print("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
 print("\033[44mCopyright © 2023 Shutdown & Kolomina, All rights reserved.\033[0m")
-print("⛔️ \033[41mThis is a preview version for insider, DO NOT share this to any people.\033[0m")
 print()
 
 
@@ -61,6 +60,27 @@ except sql.Error as e:
 
 
 
+def SqlConnTest ():
+    try:
+        dbCon.ping()  # cping 校验连接是否异常
+    except:
+        with sqlLock:
+            print(" \033[43m[E]\033[0m " + "💣数据库连接已断开")
+            # 开始尝试重连
+            for i in range (50):
+                try:
+                    dbCon = sql.connect(host=dbHost, user=dbUsr, password=dbPwd, database=dbName)
+                    print(" \033[42m[S]\033[0m " + f"已登录到{dbUsr}@{dbHost}")
+                    break
+                except sql.Error as e:
+                    print(" \033[45m[E]\033[0m " + f"无法登录到{dbUsr}@{dbHost}: {e}")
+                    # 检查是否尝试次数过多
+                    if i >= 50:
+                        print(" \033[45m[F]\033[0m " + "💢超过数据库自动重连次数上限")
+                        exit ()
+
+
+
 # 任务添加请求
 @app.get("/task/add", status_code=201)
 def read_item(hash: str):
@@ -69,6 +89,7 @@ def read_item(hash: str):
     feedbackMessage = ""
 
     # 数据库刷新
+    SqlConnTest ()
     with sqlLock:
         dbCon.commit()
         dbCur = dbCon.cursor()
@@ -163,6 +184,7 @@ def read_item(id: int):
             status_code=400, detail="Couldn't pass Secure Check. (Type: B)")
 
     # Sync Db
+    SqlConnTest ()
     try:
         with sqlLock:
             dbCon.commit()
@@ -244,6 +266,7 @@ async def upload_file(id: int, file: UploadFile = File(...)):
             status_code=400, detail="Couldn't pass Secure Check (Type: B)")
 
     # Sync Db
+    SqlConnTest ()
     try:
         with sqlLock:
             dbCon.commit()

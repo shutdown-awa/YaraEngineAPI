@@ -44,14 +44,17 @@ except sql.Error as e:
 
 
 
+## 数据库在线检测
 def SqlConnTest ():
+    global dbCon
     try:
-        dbCon.ping()  # cping 校验连接是否异常
+        dbCon.ping()
     except:
         with sqlLock:
             print(" \033[43m[E]\033[0m " + "💣数据库连接已断开")
             # 开始尝试重连
             for i in range (50):
+                time.sleep (5)
                 try:
                     dbCon = sql.connect(host=dbHost, user=dbUsr, password=dbPwd, database=dbName)
                     print(" \033[42m[S]\033[0m " + f"已登录到{dbUsr}@{dbHost}")
@@ -155,5 +158,5 @@ def EventClock():
 YaraRuleCompile()
 #规则加载
 YaraRuleLoad()
-
+#定时服务
 EventClock()

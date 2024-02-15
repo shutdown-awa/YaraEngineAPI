@@ -129,8 +129,8 @@ def read_item(hash: str):
                               (hash, 'NoFile', 'na', 0, 0))
                 dbCon.commit()
             feedbackMessage = "已添加"
-        except:
-            print(" \033[43m[E]\033[0m " + f"未能存储文件信息：{dbCon.Error()}")
+        except dbCon.Error as e:
+            print(" \033[43m[E]\033[0m " + f"未能存储文件信息：{e}")
             raise HTTPException(status_code=500, detail="Database Error")
 
     # 添加任务信息到task表

@@ -116,6 +116,9 @@ def YaraRuleLoad():
 
 ## 扫描
 def YaraScanFile (hash):
+    # SQL连接测试
+    SqlConnTest ()
+    
     dbCur=dbCon.cursor()
     fileUrl = configFileDir + "/" + hash
 
@@ -141,16 +144,6 @@ def YaraScanFile (hash):
         dbCur.execute("UPDATE `file` SET `timestamp` = %s WHERE `hash` = %s;", (int(time.time()), hash))
         dbCur.execute("UPDATE `file` SET `rule_version` = %s WHERE `hash` = %s;", (ruleVersion, hash))
         dbCon.commit()
-
-
-
-## 事件服务
-def EventClock():
-    print(" \033[42m[S]\033[0m " + "✅YaraAction计划任务已处于活跃状态!")
-    while True:
-        time.sleep (5)
-        # Sql连接测试
-        SqlConnTest ()
             
 
 
@@ -158,5 +151,3 @@ def EventClock():
 YaraRuleCompile()
 #规则加载
 YaraRuleLoad()
-#定时服务
-EventClock()

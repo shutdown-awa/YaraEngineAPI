@@ -44,6 +44,30 @@ except sql.Error as e:
 
 
 
+## 数据库在线检测
+def SqlConnTest ():
+    global dbCon
+    try:
+        dbCon.ping()
+    except:
+        with sqlLock:
+            print(" \033[43m[E]\033[0m " + "💣数据库连接已断开")
+            # 开始尝试重连
+            for i in range (50):
+                time.sleep (5)
+                try:
+                    dbCon = sql.connect(host=dbHost, user=dbUsr, password=dbPwd, database=dbName)
+                    print(" \033[42m[S]\033[0m " + f"已登录到{dbUsr}@{dbHost}")
+                    break
+                except sql.Error as e:
+                    print(" \033[45m[E]\033[0m " + f"无法登录到{dbUsr}@{dbHost}: {e}")
+                    # 检查是否尝试次数过多
+                    if i >= 50:
+                        print(" \033[45m[F]\033[0m " + "💢超过数据库自动重连次数上限")
+                        exit ()
+
+
+                        
 ## 规则编译器
 def YaraRuleCompile():
     # 获取版本信息
@@ -92,6 +116,9 @@ def YaraRuleLoad():
 
 ## 扫描
 def YaraScanFile (hash):
+    # SQL连接测试
+    SqlConnTest ()
+    
     dbCur=dbCon.cursor()
     fileUrl = configFileDir + "/" + hash
 
@@ -117,12 +144,6 @@ def YaraScanFile (hash):
         dbCur.execute("UPDATE `file` SET `timestamp` = %s WHERE `hash` = %s;", (int(time.time()), hash))
         dbCur.execute("UPDATE `file` SET `rule_version` = %s WHERE `hash` = %s;", (ruleVersion, hash))
         dbCon.commit()
-
-
-
-## 事件服务
-def EventClock():
-    print(" \033[42m[S]\033[0m " + "✅YaraAction计划任务已处于活跃状态!")
             
 
 
@@ -130,5 +151,3 @@ def EventClock():
 YaraRuleCompile()
 #规则加载
 YaraRuleLoad()
-
-EventClock()

@@ -9,7 +9,6 @@ print ("\033[44m== Yara Engine API Project ==========\033[0m")
 print ("\033[44mSystem: " + platform.platform() + "\033[0m")
 print ("\033[44mPyVersion: " + platform.python_version() + "\033[0m")
 print ("\033[44mCopyright © 2024 Shutdown & Kolomina, All rights reserved.\033[0m")
-print ("⛔️ \033[41mThis is a preview version for insider, DO NOT share this to any people.\033[0m")
 print ()
 
 import YaraAction as engine
@@ -35,6 +34,30 @@ def configReader():
     dbUsr = configSql["user"] #数据库用户
     dbPwd = configSql["password"] #数据库密码
     dbName = configSql["name"] #数据库名字
+
+
+
+## 数据库在线检测
+def SqlConnTest ():
+    global dbCon
+    try:
+        dbCon.ping()
+    except:
+        with sqlLock:
+            print(" \033[43m[E]\033[0m " + "💣数据库连接已断开")
+            # 开始尝试重连
+            for i in range (50):
+                time.sleep (5)
+                try:
+                    dbCon = sql.connect(host=dbHost, user=dbUsr, password=dbPwd, database=dbName)
+                    print(" \033[42m[S]\033[0m " + f"已登录到{dbUsr}@{dbHost}")
+                    break
+                except sql.Error as e:
+                    print(" \033[45m[E]\033[0m " + f"无法登录到{dbUsr}@{dbHost}: {e}")
+                    # 检查是否尝试次数过多
+                    if i >= 50:
+                        print(" \033[45m[F]\033[0m " + "💢超过数据库自动重连次数上限")
+                        exit ()
 
 
 
@@ -67,6 +90,11 @@ def EventClock():
     # 有没有新任务
     while True:
         time.sleep (5)
+        # Sql连接测试
+        SqlConnTest ()
+
+
+        # Sql扫描
         with sqlLock:
             dbCon.commit()
             dbCur.execute("SELECT hash FROM `file` WHERE status = 'InList';")
